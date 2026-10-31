@@ -1,212 +1,172 @@
 
 #include <stdio.h>
-#include <ctype.h>
-#include <string.h>
 
-#define MAX 20
-#define LEN 10
+char prod[20][20];       // Stores all productions
+int n;                   // Number of productions
 
-int n;
-char productions[MAX][LEN];
-char first[26][MAX];
-char follow[26][MAX];
+char set[30];            // Stores FIRST or FOLLOW set
+int m;                   // Number of symbols in the set
 
-void addToSet(char set[], char val) {
-    int i;
+int busy[128];           // Prevents infinite recursion in FIRST
+int seen[128];           // Prevents infinite recursion in FOLLOW
 
-    for (i = 0; set[i] != '\0'; i++) {
-        if (set[i] == val)
+// Add a symbol only if it is not already present
+void add(char c) {
+    for (int i = 0; i < m; i++) {
+        if (set[i] == c)
             return;
     }
-
-    set[i] = val;
-    set[i + 1] = '\0';
+    set[m++] = c;
 }
 
-int contains(char set[], char val) {
-    return strchr(set, val) != NULL;
-}
+// Find FIRST(c)
+// Returns 1 if c can derive epsilon, otherwise 0
+int first(char c) {
 
-/* Calculate FIRST sets until no set changes */
-void findFirstSets(void) {
-    int changed;
+    // If c is a terminal, add it
+    if (c < 'A' || c > 'Z') {
+        add(c);
+        return 0;
+    }
 
-    do {
-        changed = 0;
+    // Stop if this non-terminal is already being processed
+    if (busy[c])
+        return 0;
 
-        for (int i = 0; i < n; i++) {
-            char lhs = productions[i][0];
-            char *rhs = productions[i] + 2;
-            int lhsIdx = lhs - 'A';
+    busy[c] = 1;
+    int eps = 0;
 
-            if (rhs[0] == '#') {
-                if (!contains(first[lhsIdx], '#')) {
-                    addToSet(first[lhsIdx], '#');
-                    changed = 1;
-                }
-                continue;
+    // Check every production of c
+    for (int i = 0; i < n; i++) {
+        if (prod[i][0] != c)
+            continue;
+
+        int allvanish = 1;
+
+        // Examine RHS from left to right
+        for (int j = 2; prod[i][j] != '\0'; j++) {
+
+            // # represents epsilon
+            if (prod[i][j] == '#') {
+                eps = 1;
+                break;
             }
 
-            int allNullable = 1;
-
-            for (int j = 0; rhs[j] != '\0'; j++) {
-                char symbol = rhs[j];
-
-                if (!isupper((unsigned char)symbol)) {
-                    if (!contains(first[lhsIdx], symbol)) {
-                        addToSet(first[lhsIdx], symbol);
-                        changed = 1;
-                    }
-
-                    allNullable = 0;
-                    break;
-                }
-
-                int idx = symbol - 'A';
-
-                for (int k = 0; first[idx][k] != '\0'; k++) {
-                    char val = first[idx][k];
-
-                    if (val != '#' &&
-                        !contains(first[lhsIdx], val)) {
-                        addToSet(first[lhsIdx], val);
-                        changed = 1;
-                    }
-                }
-
-                if (!contains(first[idx], '#')) {
-                    allNullable = 0;
-                    break;
-                }
-            }
-
-            if (allNullable &&
-                !contains(first[lhsIdx], '#')) {
-                addToSet(first[lhsIdx], '#');
-                changed = 1;
+            // Continue only if this symbol can derive epsilon
+            if (!first(prod[i][j])) {
+                allvanish = 0;
+                break;
             }
         }
-    } while (changed);
+
+        // Every symbol on RHS can derive epsilon
+        if (allvanish)
+            eps = 1;
+    }
+
+    busy[c] = 0;
+    return eps;
 }
 
-/* Calculate FOLLOW sets until no set changes */
-void findFollowSets(void) {
-    int changed;
+// Find FOLLOW(c)
+void follow(char c) {
 
-    addToSet(follow[productions[0][0] - 'A'], '$');
+    // Avoid processing the same non-terminal repeatedly
+    if (seen[c])
+        return;
 
-    do {
-        changed = 0;
+    seen[c] = 1;
 
-        for (int i = 0; i < n; i++) {
-            char lhs = productions[i][0];
-            char *rhs = productions[i] + 2;
-            int lhsIdx = lhs - 'A';
+    // The start symbol always contains $ in its FOLLOW set
+    if (prod[0][0] == c)
+        add('$');
 
-            for (int j = 0; rhs[j] != '\0'; j++) {
-                char symbol = rhs[j];
+    // Search for c in  every RHS
+    for (int i = 0; i < n; i++) {
+        for (int j = 2; prod[i][j] != '\0'; j++) {
 
-                if (!isupper((unsigned char)symbol))
+            if (prod[i][j] != c)
+                continue;
+
+            int allvanish = 1;
+
+            // Check the symbols appearing after c
+            for (int k = j + 1; prod[i][k] != '\0'; k++) {
+
+                // Epsilon does not contribute a terminal
+                if (prod[i][k] == '#')
                     continue;
 
-                int idx = symbol - 'A';
-                int nullable = 1;
-
-                for (int k = j + 1; rhs[k] != '\0'; k++) {
-                    char next = rhs[k];
-
-                    if (!isupper((unsigned char)next)) {
-                        if (!contains(follow[idx], next)) {
-                            addToSet(follow[idx], next);
-                            changed = 1;
-                        }
-
-                        nullable = 0;
-                        break;
-                    }
-
-                    int nextIdx = next - 'A';
-
-                    for (int m = 0;
-                         first[nextIdx][m] != '\0'; m++) {
-                        char val = first[nextIdx][m];
-
-                        if (val != '#' &&
-                            !contains(follow[idx], val)) {
-                            addToSet(follow[idx], val);
-                            changed = 1;
-                        }
-                    }
-
-                    if (!contains(first[nextIdx], '#')) {
-                        nullable = 0;
-                        break;
-                    }
-                }
-
-                if (nullable) {
-                    for (int k = 0;
-                         follow[lhsIdx][k] != '\0'; k++) {
-                        char val = follow[lhsIdx][k];
-
-                        if (!contains(follow[idx], val)) {
-                            addToSet(follow[idx], val);
-                            changed = 1;
-                        }
-                    }
+                // FIRST of the next symbol is added to set
+                if (!first(prod[i][k])) {
+                    allvanish = 0;
+                    break;
                 }
             }
+
+            // If c is at the end, or everything after it
+            // can derive epsilon, add FOLLOW of the LHS
+            if (allvanish)
+                follow(prod[i][0]);
         }
-    } while (changed);
+    }
 }
 
-int main(void) {
+// Display the calculated set
+void show(char name[], char c) {
+    printf("%s(%c) = { ", name, c);
+
+    for (int i = 0; i < m; i++)
+        printf("%c ", set[i]);
+
+    printf("}\n");
+}
+
+int main() {
+    char c;
+    int again = 1;
+
     printf("Enter number of productions: ");
+    scanf("%d", &n);
 
-    if (scanf("%d", &n) != 1 || n < 1 || n >= MAX) {
-        printf("Invalid number of productions.\n");
-        return 1;
-    }
+    printf("Enter productions (use # for epsilon):\n");
 
-    printf("Enter rules (example: E=TR, # means epsilon):\n");
+    // Enter each alternative on a separate line
+    for (int i = 0; i < n; i++)
+        scanf("%s", prod[i]);
 
-    for (int i = 0; i < n; i++) {
-        if (scanf("%9s", productions[i]) != 1 ||
-            strlen(productions[i]) < 3 ||
-            productions[i][1] != '=' ||
-            !isupper((unsigned char)productions[i][0])) {
-            printf("Invalid production format.\n");
-            return 1;
+    while (again == 1) {
+
+        printf("\nEnter the non-terminal: ");
+        scanf(" %c", &c);
+
+        // -------- FIRST --------
+        m = 0;
+
+        // Reset recursion flags
+        for (int i = 0; i < 128; i++)
+            busy[i] = 0;
+
+        // Add epsilon to FIRST if it can be derived
+        if (first(c))
+            add('#');
+
+        show("First", c);
+
+        // -------- FOLLOW --------
+        m = 0;
+
+        // Reset flags before calculating FOLLOW
+        for (int i = 0; i < 128; i++) {
+            seen[i] = 0;
+            busy[i] = 0;
         }
-    }
 
-    findFirstSets();
-    findFollowSets();
+        follow(c);
+        show("Follow", c);
 
-    printf("\n--- FIRST SETS ---\n");
-
-    for (int i = 0; i < n; i++) {
-        int idx = productions[i][0] - 'A';
-
-        printf("FIRST(%c) = { ", productions[i][0]);
-
-        for (int j = 0; first[idx][j] != '\0'; j++)
-            printf("%c ", first[idx][j]);
-
-        printf("}\n");
-    }
-
-    printf("\n--- FOLLOW SETS ---\n");
-
-    for (int i = 0; i < n; i++) {
-        int idx = productions[i][0] - 'A';
-
-        printf("FOLLOW(%c) = { ", productions[i][0]);
-
-        for (int j = 0; follow[idx][j] != '\0'; j++)
-            printf("%c ", follow[idx][j]);
-
-        printf("}\n");
+        printf("\nEnter 1 to continue: ");
+        scanf("%d", &again);
     }
 
     return 0;
