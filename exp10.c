@@ -1,140 +1,149 @@
+/*
+change: whenever a variable and value is discovered, from that statement onwards
+replace the variale with the value
+When RHS is already a constant, propagate it and skip the remaining processing.
+*/
+
 
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 #include <stdlib.h>
+#include <ctype.h>
 
-#define MAX 10
-
-struct Expr {
-    char result[20];
-    char op1[20];
-    char op2[20];
-    char op;
-    int binary;
-};
-
-struct Expr arr[MAX];
+char statements[10][50];
 int n;
 
-int known[256];
-int value[256];
+// Replace a variable with its constant value in later statements
+void change(int pos, char variable, char *value)
+{
+    int i, j;
 
-int isNumber(const char *s) {
-    if (*s == '\0') return 0;
+    for (i = pos + 1; i < n; i++)
+    {
+        for (j = 2; statements[i][j] != '\0'; j++)
+        {
+            if (statements[i][j] == variable)
+            {
+                // Replace the variable with its constant value
+                char temp[50];
 
-    for (int i = 0; s[i]; i++) {
-        if (!isdigit((unsigned char)s[i])) return 0;
+                strncpy(temp, statements[i], j);
+                temp[j] = '\0';
+
+                strcat(temp, value);
+                strcat(temp, statements[i] + j + 1);
+
+                strcpy(statements[i], temp);
+                j += strlen(value) - 1;
+            }
+        }
     }
-
-    return 1;
 }
 
-void replaceConstant(char *operand) {
-    if (strlen(operand) == 1 &&
-        isalpha((unsigned char)operand[0]) &&
-        known[(unsigned char)operand[0]]) {
-        sprintf(operand, "%d", value[(unsigned char)operand[0]]);
-    }
-}
+// Perform constant propagation and constant folding
+void constant()
+{
+    int i, j, left, right, result;
+    char variable, op;
+    char rhs[50], value[20];
 
-int main(void) {
-    char line[100];
+    for (i = 0; i < n; i++)
+    {
+        variable = statements[i][0];
+        strcpy(rhs, statements[i] + 2);
 
-    printf("Enter the maximum number of expressions: ");
-    if (scanf("%d", &n) != 1 || n < 1 || n > MAX) {
-        printf("Invalid number of expressions (1 to 10).\n");
-        return 1;
-    }
+        // Check whether the right side contains only a number
+        if (isdigit(rhs[0]))
+        {
+            int isNumber = 1;
 
-    getchar();
+            for (j = 0; rhs[j] != '\0'; j++)
+            {
+                if (!isdigit(rhs[j]))
+                    isNumber = 0;
+            }
 
-    printf("Enter the input:\n");
-
-    for (int i = 0; i < n; i++) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            printf("Invalid input.\n");
-            return 1;
-        }
-
-        line[strcspn(line, "\r\n")] = '\0';
-
-        char *equal = strchr(line, '=');
-        if (equal == NULL) {
-            printf("Invalid expression: %s\n", line);
-            return 1;
-        }
-
-        *equal = '\0';
-        strcpy(arr[i].result, line);
-
-        char rhs[50];
-        strcpy(rhs, equal + 1);
-
-        arr[i].binary = 0;
-        arr[i].op = '\0';
-        strcpy(arr[i].op1, rhs);
-        strcpy(arr[i].op2, "");
-
-        for (int j = 1; rhs[j] != '\0'; j++) {
-            if (rhs[j] == '+' || rhs[j] == '-' ||
-                rhs[j] == '*' || rhs[j] == '/') {
-                arr[i].op = rhs[j];
-                rhs[j] = '\0';
-                strcpy(arr[i].op1, rhs);
-                strcpy(arr[i].op2, rhs + j + 1);
-                arr[i].binary = 1;
-                break;
+            if (isNumber)
+            {
+                strcpy(value, rhs);
+                change(i, variable, value);
+                continue;
             }
         }
 
-        replaceConstant(arr[i].op1);
+        // Find the arithmetic operator
+        for (j = 0; rhs[j] != '\0'; j++)
+        {
+            if (rhs[j] == '+' || rhs[j] == '-' ||
+                rhs[j] == '*' || rhs[j] == '/')
+                break;
+        }
 
-        if (arr[i].binary) {
-            replaceConstant(arr[i].op2);
+        // Fold expressions containing two constants
+        if (rhs[j] != '\0')
+        {
+            op = rhs[j];
+            rhs[j] = '\0';
 
-            if (isNumber(arr[i].op1) && isNumber(arr[i].op2)) {
-                int a = atoi(arr[i].op1);
-                int b = atoi(arr[i].op2);
-                int result = 0;
+            if (isdigit(rhs[0]) && isdigit(rhs[j + 1]))
+            {
+                left = atoi(rhs);
+                right = atoi(rhs + j + 1);
 
-                switch (arr[i].op) {
-                    case '+': result = a + b; break;
-                    case '-': result = a - b; break;
-                    case '*': result = a * b; break;
-                    case '/':
-                        if (b == 0) {
-                            printf("Error: division by zero.\n");
-                            return 1;
-                        }
-                        result = a / b;
-                        break;
+                if (op == '/' && right == 0)
+                    continue;
+
+                switch (op)
+                {
+                    case '+': result = left + right; break;
+                    case '-': result = left - right; break;
+                    case '*': result = left * right; break;
+                    case '/': result = left / right; break;
+                    default: continue;
                 }
 
-                sprintf(arr[i].op1, "%d", result);
-                arr[i].binary = 0;
+                sprintf(value, "%d", result);
+                sprintf(statements[i], "%c=%s", variable, value);
+
+                // Propagate the newly calculated constant
+                change(i, variable, value);
             }
         }
-
-        if (!arr[i].binary && isNumber(arr[i].op1)) {
-            known[(unsigned char)arr[i].result[0]] = 1;
-            value[(unsigned char)arr[i].result[0]] = atoi(arr[i].op1);
-        } else {
-            known[(unsigned char)arr[i].result[0]] = 0;
-        }
     }
+}
 
-    printf("\nOptimized code is:\n");
+// Display optimized code
+void output()
+{
+    int i, j;
 
-    for (int i = 0; i < n; i++) {
-        if (arr[i].binary) {
-            printf("%s = %s %c %s\n",
-                   arr[i].result, arr[i].op1,
-                   arr[i].op, arr[i].op2);
-        } else {
-            printf("%s = %s\n", arr[i].result, arr[i].op1);
-        }
+    printf("\nOptimized code:\n");
+
+    for (i = 0; i < n; i++)
+    {
+        printf("%c = ", statements[i][0]);
+
+        for (j = 2; statements[i][j] != '\0'; j++)
+            printf("%c", statements[i][j]);
+
+        printf("\n");
     }
+}
+
+int main()
+{
+    int i;
+
+    printf("Enter number of statements: ");
+    scanf("%d", &n);
+
+    printf("Enter statements without spaces:\n");
+
+    for (i = 0; i < n; i++)
+        scanf("%49s", statements[i]);
+
+    constant();
+    output();
 
     return 0;
 }

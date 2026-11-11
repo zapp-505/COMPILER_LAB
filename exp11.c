@@ -1,78 +1,71 @@
 
 #include <stdio.h>
-#include <string.h>
 
-int main(void) {
-    char icode[10][30];
-    char str[30];
-    char opr[10];
-    int i = 0;
+#define SIZE 50
 
-    printf("Enter the set of intermediate code "
-           "(terminated by exit):\n");
+char res[SIZE][10];
+char opnd1[SIZE][10];
+char opnd2[SIZE][10];
+char op[SIZE];
 
-    while (i < 10) {
-        if (fgets(icode[i], sizeof(icode[i]), stdin) == NULL) {
-            break;
-        }
+int num;
 
-        icode[i][strcspn(icode[i], "\r\n")] = '\0';
+int main() {
+    int i;
+    char eq[10], opstr[10];
 
-        if (strcmp(icode[i], "exit") == 0) {
-            break;
-        }
+    printf("Enter the number of instructions: ");
+    scanf("%d", &num);
 
-        if (strlen(icode[i]) == 0) {
-            continue;
-        }
-
-        i++;
+    if (num > SIZE) {
+        printf("Too many instructions (max %d)\n", SIZE);
+        return 1;
     }
 
-    printf("\nTarget code generation\n");
-    printf("************************\n");
+    printf("Enter each instruction (Example: t1 = a + b)\n");
 
-    for (int j = 0; j < i; j++) {
-        strcpy(str, icode[j]);
+    for (i = 0; i < num; i++) {
+        scanf("%9s %9s %9s %9s %9s",
+              res[i], eq, opnd1[i], opstr, opnd2[i]);
 
-        /*
-           Expected input format: a=b+c
-           str[0] = result
-           str[2] = first operand
-           str[3] = operator
-           str[4] = second operand
-        */
+        op[i] = opstr[0];
+    }
 
-        if (strlen(str) != 5 || str[1] != '=') {
-            printf("Unsupported expression: %s\n", str);
-            continue;
-        }
+    printf("\nEquivalent 8086 Assembly Code:\n");
 
-        switch (str[3]) {
+    for (i = 0; i < num; i++) {
+        switch (op[i]) {
+
             case '+':
-                strcpy(opr, "ADD");
+                printf("\nMOV AX, %s", opnd1[i]);
+                printf("\nADD AX, %s", opnd2[i]);
+                printf("\nMOV %s, AX\n", res[i]);
                 break;
 
             case '-':
-                strcpy(opr, "SUB");
+                printf("\nMOV AX, %s", opnd1[i]);
+                printf("\nSUB AX, %s", opnd2[i]);
+                printf("\nMOV %s, AX\n", res[i]);
                 break;
 
             case '*':
-                strcpy(opr, "MUL");
+                printf("\nMOV AX, %s", opnd1[i]);
+                printf("\nMOV BX, %s", opnd2[i]);
+                printf("\nMUL BX");
+                printf("\nMOV %s, AX\n", res[i]);
                 break;
 
             case '/':
-                strcpy(opr, "DIV");
+                printf("\nMOV AX, %s", opnd1[i]);
+                printf("\nMOV BX, %s", opnd2[i]);
+                printf("\nXOR DX, DX");
+                printf("\nDIV BX");
+                printf("\nMOV %s, AX\n", res[i]);
                 break;
 
             default:
-                printf("Unsupported operator in: %s\n", str);
-                continue;
+                printf("\nInvalid operator: %c\n", op[i]);
         }
-
-        printf("\n\tMOV %c,R%d", str[2], j);
-        printf("\n\t%s %c,R%d", opr, str[4], j);
-        printf("\n\tMOV R%d,%c\n", j, str[0]);
     }
 
     return 0;
