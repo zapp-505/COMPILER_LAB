@@ -36,7 +36,7 @@ void generate_tac() {
 
     op = op_stack[op_top--];
 
-    strcpy(op2, val_stack[val_top--]);
+    strcpy(op2, val_stack[val_top--]);//arr shld be assignd w strcpy
     strcpy(op1, val_stack[val_top--]);
 
     sprintf(temp, "t%d", temp_count++);
@@ -80,15 +80,21 @@ void parse_to_tac(char *expr) {
             while (op_top >= 0 && op_stack[op_top] != '(')
                 generate_tac();
 
-            op_top--;
-            i++;
+            if (op_top < 0) {
+                printf("Mismatched parentheses\n");
+                exit(1);
+            }
+
+
+            op_top--;//most past opening para
+            i++;//closing para
         }
 
         else {
             while (op_top >= 0 &&
                    precedence(op_stack[op_top]) >= precedence(expr[i]))
                 generate_tac();
-
+            //if no val then add to top 
             op_stack[++op_top] = expr[i];
             i++;
         }
@@ -102,7 +108,7 @@ int main() {
     char expr[MAX];
 
     printf("Enter an expression: ");
-    fgets(expr, MAX, stdin);
+    fgets(expr, MAX, stdin);//whitespace allowed
 
     printf("\nThree address code:\n");
 

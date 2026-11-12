@@ -14,6 +14,9 @@ char statements[10][50];
 int n;
 
 // Replace a variable with its constant value in later statements
+//iterate till the var, store till var to temp and add \0 in posi of temp
+//concatinate value to temp and also remaining part of statement to temp 
+//replace staetment with temp, then move to locatio after temp
 void change(int pos, char variable, char *value)
 {
     int i, j;
@@ -80,6 +83,8 @@ void constant()
         }
 
         // Fold expressions containing two constants
+        //first check if operator existed i.e it didnt reach end
+        //then check if both are digits then perform operation
         if (rhs[j] != '\0')
         {
             op = rhs[j];
